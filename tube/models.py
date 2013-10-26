@@ -11,6 +11,67 @@ tag = lambda x: '%s%s' % (TAG_PREFIX, x)
 to_bool = lambda x: x == 'true'
 
 
+def status_difference(status1, status2):
+
+    first = lambda x, y: x if x.fetched < y.fetched else y
+    last = lambda x, y: x if x.fetched > y.fetched else y
+    summary_s1 = first(status1, status2).status_summary()
+    summary_s2 = last(status1, status2).status_summary()
+
+    return {line: summary_s2[line] for line in summary_s1 if summary_s1[line] != summary_s2[line]}
+
+
+TUBE_LINES = [
+    ('bakerloo', 'Bakerloo'),
+    ('central', 'Central'),
+    ('circle', 'Circle'),
+    ('district', 'District'),
+    ('dlr', 'DLR'),
+    ('hammersmith-and-city', 'Hammersmith and City'),
+    ('jubilee', 'Jubilee'),
+    ('metropolitan', 'Metropolitan'),
+    ('northern', 'Northern'),
+    ('overground', 'Overground'),
+    ('piccadilly', 'Picadilly'),
+    ('victoria', 'Victoria'),
+    ('waterloo-and-city', 'Waterloo and City'),
+]
+
+
+class TubeDisruption(models.Model):
+    line = models.CharField(max_length=200, choices=TUBE_LINES)
+    description = models.CharField(max_length=100)
+    start = models.DateTimeField()
+    end = models.DateTimeField(blank=True, null=True)
+    duration = models.PositiveIntegerField(blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        if not self.duration and self.end:
+            self.duration = int((self.end - self.start).total_seconds() / 60)
+        return super(TubeDisruption, self).save(*args, **kwargs)
+
+    def __str__(self):
+        return '%s - %s' % (self.line, self.description)
+
+
+def create_tube_disruptions():
+    statuses = TubeStatus.objects.all()
+    for index in range(1, TubeStatus.objects.count()):
+        differences = status_difference(statuses[index], statuses[index - 1])
+        for line, description in differences.items():
+            try:
+                disruption = TubeDisruption.objects.get(line=line, end__isnull=True)
+            except TubeDisruption.DoesNotExist:
+                disruption = None
+
+            if disruption:
+                disruption.end = statuses[index].fetched
+                disruption.save()
+
+            TubeDisruption.objects.create(
+                line=line, description=description, start=statuses[index].fetched)
+
+
 class TubeStatus(models.Model):
     raw_status = models.TextField()
     fetched = models.DateTimeField(auto_now_add=True)
@@ -59,6 +120,9 @@ class TubeStatus(models.Model):
             response[slugify(line_name)] = status
 
         return response
+
+    def status_summary(self):
+        return {x: y['status']['description'] for (x, y) in self.to_json().items()}
 
     def __str__(self):
         return self.fetched.strftime('%Y-%m-%d %H:%M:%S')
