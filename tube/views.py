@@ -29,17 +29,17 @@ class DisruptionsView(generics.ListAPIView):
 
         start = self.request.QUERY_PARAMS.get('start__gt')
         end = self.request.QUERY_PARAMS.get('end__lt')
-        line = self.request.QUERY_PARAMS.getlist('line')
-        description = self.request.QUERY_PARAMS.getlist('description')
+        line = self.request.QUERY_PARAMS.get('line')
+        description = self.request.QUERY_PARAMS.get('description')
 
         if start:
             filters['start__gt'] = datetime.strptime(start, "%Y-%m-%d")
         if end:
             filters['end__lt'] = datetime.strptime(end, "%Y-%m-%d")
         if line:
-            filters['line__in'] = line
+            filters['line__in'] = line.split(',')
         if description:
-            filters['description__in'] = description
+            filters['description__in'] = description.split(',')
 
         if filters:
             qs = qs.filter(**filters)
