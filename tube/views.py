@@ -11,6 +11,18 @@ class DisruptionsView(generics.ListAPIView):
     serializer_class = TubeDisruptionSerializer
     paginate_by = 100
 
+    def get_pagination_serializer(self, page):
+        serializer = super(DisruptionsView, self).get_pagination_serializer(page)
+
+        if 'next' in serializer.data and serializer.data['next']:
+            serializer.data['next'] = serializer.data['next'].replace(
+                'localhost:8600', 'tfl.recio.me')
+        if 'previous' in serializer.data and serializer.data['previous']:
+            serializer.data['previous'] = serializer.data['previous'].replace(
+                'localhost:8600', 'tfl.recio.me')
+
+        return serializer
+
     def get_queryset(self):
         qs = super(DisruptionsView, self).get_queryset()
         filters = {}
